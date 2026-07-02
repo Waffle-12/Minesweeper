@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FIELD CLEARANCE // Minesweeper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f0c;
+    --panel:#111813;
+    --panel-alt:#161f19;
+    --line:#26332b;
+    --line-bright:#3a4a3f;
+    --amber:#ffb400;
+    --amber-dim:#8a6a1a;
+    --green:#4ade80;
+    --green-dim:#2a5c3f;
+    --red:#ff5252;
+    --text:#cfd9d1;
+    --text-dim:#6f8177;
+    --cell-hidden:#1b2621;
+    --cell-hidden-hi:#22302a;
+    --cell-revealed:#0d1310;
+    --cell-line:#243029;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top left, #101a14 0%, transparent 55%),
+      radial-gradient(ellipse at bottom right, #0d1712 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:'JetBrains Mono', monospace;
+    min-height:100vh;
+    padding:22px;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size:28px 28px;
+  }
+  .wrap{max-width:1280px;margin:0 auto;}
+
+  /* header */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    border:1px solid var(--line); background:var(--panel);
+    padding:14px 20px; margin-bottom:16px; position:relative; overflow:hidden;
+  }
+  header::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+    background:repeating-linear-gradient(45deg, var(--amber) 0 6px, transparent 6px 12px);
+    opacity:.55;
+  }
+  .title-block{padding-left:14px;}
+  .eyebrow{
+    font-size:11px; letter-spacing:.22em; color:var(--amber); text-transform:uppercase;
+    margin-bottom:4px; font-weight:600;
+  }
+  h1{
+    font-family:'Chakra Petch', sans-serif; font-weight:700; font-size:26px;
+    margin:0; letter-spacing:.03em; color:var(--text);
+  }
+  h1 span{color:var(--amber);}
+  .status-strip{display:flex; gap:22px; align-items:center;}
+  .readout{
+    text-align:center; border:1px solid var(--line); background:var(--panel-alt);
+    padding:8px 16px; min-width:92px;
+  }
+  .readout .label{font-size:10px; letter-spacing:.15em; color:var(--text-dim); text-transform:uppercase; margin-bottom:3px;}
+  .readout .value{font-family:'Chakra Petch', sans-serif; font-size:22px; font-weight:700; color:var(--amber); font-variant-numeric:tabular-nums;}
+  .readout.state .value{color:var(--green);}
+  .readout.state.lost .value{color:var(--red);}
+
+  /* layout */
+  .layout{display:grid; grid-template-columns:300px 1fr; gap:16px; align-items:start;}
+  @media (max-width:880px){ .layout{grid-template-columns:1fr;} }
+
+  .panel{
+    border:1px solid var(--line); background:var(--panel); padding:18px;
+  }
+  .panel + .panel{margin-top:16px;}
+  .panel h2{
+    font-family:'Chakra Petch', sans-serif; font-size:13px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--text-dim); margin:0 0 14px 0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .panel h2::before{content:"//"; color:var(--amber-dim);}
+
+  .field{margin-bottom:16px;}
+  .field:last-child{margin-bottom:0;}
+  .field-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;}
+  .field label{font-size:11px; letter-spacing:.08em; color:var(--text-dim); text-transform:uppercase;}
+  .field .num{font-family:'Chakra Petch', sans-serif; color:var(--amber); font-weight:600; font-size:13px;}
+
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px; background:var(--line-bright);
+    outline:none; margin:6px 0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; background:var(--amber);
+    border-radius:2px; cursor:pointer; border:2px solid #0a0f0c;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:14px; height:14px; background:var(--amber); border-radius:2px; cursor:pointer; border:2px solid #0a0f0c;
+  }
+  input[type=number]{
+    width:100%; background:var(--cell-hidden); border:1px solid var(--line-bright);
+    color:var(--text); font-family:'JetBrains Mono', monospace; font-size:13px;
+    padding:7px 8px;
+  }
+  input[type=number]:focus, input[type=range]:focus{outline:1px solid var(--amber);}
+
+  .dims{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+
+  .presets{display:flex; gap:6px; flex-wrap:wrap; margin-top:10px;}
+  button{
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.05em;
+    background:var(--panel-alt); color:var(--text); border:1px solid var(--line-bright);
+    padding:7px 10px; cursor:pointer; text-transform:uppercase;
+  }
+  button:hover{border-color:var(--amber); color:var(--amber);}
+  button.active{background:var(--amber-dim); border-color:var(--amber); color:var(--bg); font-weight:700;}
+  button.primary{
+    width:100%; background:var(--amber); color:#0a0f0c; font-weight:700; border-color:var(--amber);
+    padding:11px; font-size:12px; margin-top:14px;
+  }
+  button.primary:hover{background:#ffc233; color:#0a0f0c;}
+
+  .xp-estimate{
+    margin-top:14px; padding-top:12px; border-top:1px dashed var(--line-bright);
+  }
+  .xp-est-value{color:var(--green) !important; font-size:15px;}
+  .xp-est-value.ineligible{color:var(--text-dim) !important;}
+
+  /* density preview */
+  .preview-box{
+    border:1px solid var(--line-bright); background:var(--panel-alt);
+    padding:10px; position:relative;
+  }
+  .preview-box .cap{
+    display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim);
+    letter-spacing:.1em; margin-bottom:8px; text-transform:uppercase;
+  }
+  .preview-box .cap b{color:var(--amber); font-family:'Chakra Petch',sans-serif;}
+  #densityCanvas{display:block; width:100%; height:90px; image-rendering:pixelated;}
+  .preview-note{font-size:10px; color:var(--text-dim); margin-top:8px; line-height:1.5;}
+
+  /* modifiers */
+  .modifier-row{display:flex; justify-content:space-between; align-items:flex-start; gap:12px;}
+  .modifier-name{
+    font-family:'Chakra Petch', sans-serif; font-weight:700; font-size:13px; color:var(--text);
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .mod-badge{
+    font-size:9px; letter-spacing:.08em; padding:2px 6px; background:rgba(74,222,128,0.1);
+    color:var(--green); border:1px solid var(--green-dim); text-transform:uppercase;
+    font-family:'JetBrains Mono', monospace; font-weight:700;
+  }
+  .modifier-desc{font-size:11px; color:var(--text-dim); line-height:1.55; margin-top:5px;}
+  .modifier-settings{margin-top:12px; padding-top:12px; border-top:1px dashed var(--line-bright);}
+  .modifier-settings .field-row{margin-bottom:0;}
+  .modifier-settings input[type=number]{width:64px; text-align:center;}
+
+  .switch{position:relative; display:inline-block; width:42px; height:24px; flex:0 0 auto; margin-top:2px;}
+  .switch input{opacity:0; width:0; height:0; position:absolute;}
+  .switch-track{
+    position:absolute; inset:0; background:#1b2621; border:1px solid var(--line-bright);
+    transition:.2s; cursor:pointer;
+  }
+  .switch-thumb{
+    position:absolute; left:2px; top:2px; width:16px; height:16px; background:var(--text-dim);
+    transition:.2s;
+  }
+  .switch input:checked + .switch-track{background:rgba(255,180,0,0.15); border-color:var(--amber);}
+  .switch input:checked + .switch-track .switch-thumb{transform:translateX(18px); background:var(--amber);}
+
+  /* board area */
+  .board-panel{
+    border:1px solid var(--line); background:var(--panel);
+    padding:14px; display:flex; flex-direction:column; gap:10px;
+  }
+  .board-toolbar{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;}
+  .board-toolbar .hint{font-size:11px; color:var(--text-dim);}
+  .board-toolbar .hint b{color:var(--text);}
+  .zoom-ctrl{display:flex; align-items:center; gap:8px;}
+  .zoom-ctrl label{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.1em;}
+  .zoom-ctrl input[type=range]{width:100px;}
+
+  .board-scroll{
+    border:1px solid var(--line-bright); background:var(--cell-revealed);
+    overflow:auto; max-height:70vh; min-height:420px; align-self:stretch;
+    display:flex;
+  }
+  .board-row{display:flex; gap:18px; margin:auto; align-items:flex-start; padding:6px;}
+  .board-slot{display:flex; flex-direction:column; align-items:center; gap:8px;}
+  .board-timer{
+    font-family:'Chakra Petch', sans-serif; font-weight:700; font-size:13px; letter-spacing:.1em;
+    color:var(--text-dim); text-transform:uppercase; padding:5px 14px; border:1px solid var(--line-bright);
+    background:var(--panel-alt); min-width:96px; text-align:center; font-variant-numeric:tabular-nums;
+  }
+  .board-timer.hidden{display:none;}
+  .board-slot.active .board-timer{color:var(--amber); border-color:var(--amber); box-shadow:0 0 10px rgba(255,180,0,.35);}
+  .board-slot.locked .board-timer{color:var(--text-dim);}
+  .board-slot.cleared .board-timer{color:var(--green); border-color:var(--green-dim);}
+  .board-slot.failed .board-timer{color:var(--red); border-color:#5c2a2a;}
+  canvas.board-canvas{display:block; cursor:pointer; transition:opacity .3s ease, filter .3s ease;}
+  .board-slot.locked canvas.board-canvas{
+    opacity:.28; filter:grayscale(.7) brightness(.7); cursor:not-allowed; pointer-events:none;
+  }
+
+  .msg-overlay{
+    display:none; align-items:center; justify-content:center; gap:10px;
+    padding:10px; border:1px solid var(--line-bright); font-family:'Chakra Petch',sans-serif;
+    font-weight:700; letter-spacing:.08em; text-transform:uppercase; font-size:14px;
+  }
+  .msg-overlay.show{display:flex;}
+  .msg-overlay.win{background:rgba(74,222,128,.08); color:var(--green); border-color:var(--green-dim);}
+  .msg-overlay.lose{background:rgba(255,82,82,.08); color:var(--red); border-color:#5c2a2a;}
+
+  /* XP / leveling */
+  .xp-panel{
+    border:1px solid var(--line-bright); background:var(--panel-alt);
+    padding:12px 16px; position:relative; overflow:hidden;
+  }
+  .xp-top{display:flex; align-items:center; gap:12px; margin-bottom:8px; transition:opacity .35s ease;}
+  .xp-panel.gaining .xp-top{opacity:.12;}
+  .level-badge{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    width:52px; height:52px; flex:0 0 auto;
+    border:2px solid var(--amber); background:#1a1408;
+    font-family:'Chakra Petch', sans-serif; position:relative;
+    clip-path:polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  }
+  .level-badge .lv-label{font-size:8px; letter-spacing:.12em; color:var(--amber-dim);}
+  .level-badge .lv-num{font-size:19px; font-weight:700; color:var(--amber); line-height:1;}
+  .xp-info{flex:1; min-width:0;}
+  .xp-info .xp-row{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;}
+  .xp-info .xp-title{font-size:11px; letter-spacing:.14em; color:var(--text-dim); text-transform:uppercase;}
+  .xp-info .xp-fig{font-family:'Chakra Petch', sans-serif; font-size:13px; color:var(--text); font-weight:600; font-variant-numeric:tabular-nums;}
+  .xp-info .xp-fig b{color:var(--amber);}
+  .xp-track{
+    position:relative; height:14px; background:#0a0f0c; border:1px solid var(--line);
+    overflow:hidden;
+  }
+  .xp-track::after{
+    content:""; position:absolute; inset:0;
+    background-image:repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 12px);
+    pointer-events:none;
+  }
+  .xp-fill{
+    height:100%; width:0%;
+    background:linear-gradient(90deg, var(--amber-dim), var(--amber));
+    box-shadow:0 0 10px rgba(255,180,0,0.5);
+    transition:width .6s cubic-bezier(.2,.9,.25,1);
+  }
+  .xp-panel.leveling-up .xp-fill{box-shadow:0 0 18px rgba(255,180,0,0.9);}
+  .xp-panel.leveling-up .level-badge{animation:badgePulse .9s ease;}
+  @keyframes badgePulse{
+    0%{transform:scale(1); box-shadow:0 0 0 rgba(255,180,0,0);}
+    35%{transform:scale(1.18); box-shadow:0 0 16px rgba(255,180,0,.9);}
+    100%{transform:scale(1); box-shadow:0 0 0 rgba(255,180,0,0);}
+  }
+  .xp-toast{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center; text-align:center; padding:0 16px;
+    background:rgba(10,15,12,0.6);
+    font-family:'Chakra Petch', sans-serif; font-size:18px; font-weight:700;
+    color:var(--green); letter-spacing:.04em; text-transform:uppercase;
+    opacity:0; pointer-events:none;
+  }
+  .xp-toast.show{animation:toastPop 2.2s ease forwards;}
+  .xp-toast.negative{color:var(--text-dim);}
+  @keyframes toastPop{
+    0%{opacity:0;}
+    12%{opacity:1;}
+    78%{opacity:1;}
+    100%{opacity:0;}
+  }
+  .levelup-banner{
+    position:absolute; left:0; right:0; top:0; bottom:0;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(10,15,12,0.85);
+    font-family:'Chakra Petch', sans-serif; font-weight:700; letter-spacing:.18em;
+    color:var(--amber); font-size:13px; text-transform:uppercase;
+    opacity:0; pointer-events:none;
+  }
+  .levelup-banner.show{animation:bannerFlash 1.3s ease forwards;}
+  @keyframes bannerFlash{
+    0%{opacity:0;} 15%{opacity:1;} 80%{opacity:1;} 100%{opacity:0;}
+  }
+
+  footer{margin-top:16px; text-align:center; font-size:10px; color:var(--text-dim); letter-spacing:.1em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="title-block">
+      <div class="eyebrow">Field Clearance Unit &middot; Manual Detection Protocol</div>
+      <h1>MINE<span>SWEEPER</span></h1>
+    </div>
+    <div class="status-strip">
+      <div class="readout">
+        <div class="label">Mines Left</div>
+        <div class="value" id="mineCount">10</div>
+      </div>
+      <div class="readout">
+        <div class="label">Elapsed</div>
+        <div class="value" id="timer">00:00</div>
+      </div>
+      <div class="readout state" id="stateReadout">
+        <div class="label">Status</div>
+        <div class="value" id="stateValue">READY</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- SETTINGS -->
+    <div class="side">
+      <div class="panel">
+        <h2>Field Dimensions</h2>
+        <div class="dims">
+          <div class="field">
+            <div class="field-row"><label for="widthInput">Width</label></div>
+            <input type="number" id="widthInput" min="2" max="500" value="16">
+          </div>
+          <div class="field">
+            <div class="field-row"><label for="heightInput">Height</label></div>
+            <input type="number" id="heightInput" min="2" max="500" value="16">
+          </div>
+        </div>
+        <div class="presets">
+          <button data-preset="beginner">Beginner 9x9</button>
+          <button data-preset="intermediate" class="active">Intermediate 16x16</button>
+          <button data-preset="expert">Expert 30x16</button>
+          <button data-preset="max">Max 500x500</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Mine Density</h2>
+        <div class="field">
+          <div class="field-row">
+            <label for="densityInput">Density</label>
+            <span class="num" id="densityValue">15%</span>
+          </div>
+          <input type="range" id="densityInput" min="0" max="100" value="15" step="1">
+        </div>
+        <div class="preview-box">
+          <div class="cap"><span>Sample Readout</span><b id="densityValue2">15%</b></div>
+          <canvas id="densityCanvas" width="260" height="90"></canvas>
+          <div class="preview-note">Simulated charge distribution at current density. Regenerates on adjustment &mdash; actual field layout is randomized independently.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Modifiers</h2>
+        <div class="modifier-row">
+          <div>
+            <div class="modifier-name">Double Trouble <span class="mod-badge">+50% XP</span></div>
+            <div class="modifier-desc">Deploys two independently-generated boards side by side. The moment you move on one, it greys out and the other becomes live &mdash; you must move on it before the timer runs out, then control swaps back. Miss the window and the run fails.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="dtToggle">
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </label>
+        </div>
+        <div class="modifier-settings">
+          <div class="field-row">
+            <label for="dtTimerInput">Move Timer (sec)</label>
+            <input type="number" id="dtTimerInput" min="3" max="60" value="10">
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Deployment</h2>
+        <div class="field">
+          <div class="field-row"><label>Estimated Mines</label><span class="num" id="estMines">42</span></div>
+          <div class="field-row"><label>Total Cells</label><span class="num" id="totalCells">256</span></div>
+        </div>
+        <button class="primary" id="newGameBtn">Deploy New Field</button>
+        <div class="xp-estimate">
+          <div class="field-row">
+            <label>Estimated XP Gain</label>
+            <span class="num xp-est-value" id="estXP">&mdash;</span>
+          </div>
+          <div class="preview-note">Projected from a simulated 3BV sample at this size &amp; density. Excludes the completion-time factor, so actual XP will vary with clear speed. No XP is awarded for boards under 8x8 or at 0%/100% density.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOARD -->
+    <div class="board-panel">
+      <div class="board-toolbar">
+        <div class="hint">Left-click: <b>clear</b> &nbsp;&middot;&nbsp; Right-click: <b>flag</b> &nbsp;&middot;&nbsp; Click a satisfied number: <b>chord</b> &nbsp;&middot;&nbsp; Click a number whose hidden neighbors all must be mines: <b>auto-flag</b></div>
+        <div class="zoom-ctrl">
+          <label for="zoomInput">Cell Size</label>
+          <input type="range" id="zoomInput" min="6" max="32" value="24">
+        </div>
+      </div>
+      <div class="msg-overlay" id="msgOverlay"></div>
+      <div class="board-scroll" id="boardScroll">
+        <div class="board-row" id="boardRow"></div>
+      </div>
+
+      <div class="xp-panel" id="xpPanel">
+        <div class="xp-toast" id="xpToast"></div>
+        <div class="levelup-banner" id="levelupBanner">Rank Up!</div>
+        <div class="xp-top">
+          <div class="level-badge">
+            <div class="lv-label">RANK</div>
+            <div class="lv-num" id="levelNum">1</div>
+          </div>
+          <div class="xp-info">
+            <div class="xp-row">
+              <span class="xp-title">Operator Experience</span>
+              <span class="xp-fig"><b id="xpCurrent">0</b> / <span id="xpNeeded">100</span> XP</span>
+            </div>
+            <div class="xp-track">
+              <div class="xp-fill" id="xpFill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>ALL PATTERNS SIMULATED &middot; NO ACTUAL ORDNANCE INVOLVED</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- DOM ----------
+  const widthInput = document.getElementById('widthInput');
+  const heightInput = document.getElementById('heightInput');
+  const densityInput = document.getElementById('densityInput');
+  const densityValue = document.getElementById('densityValue');
+  const densityValue2 = document.getElementById('densityValue2');
+  const densityCanvas = document.getElementById('densityCanvas');
+  const estMinesEl = document.getElementById('estMines');
+  const totalCellsEl = document.getElementById('totalCells');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const mineCountEl = document.getElementById('mineCount');
+  const timerEl = document.getElementById('timer');
+  const stateReadout = document.getElementById('stateReadout');
+  const stateValue = document.getElementById('stateValue');
+  const msgOverlay = document.getElementById('msgOverlay');
+  const boardRow = document.getElementById('boardRow');
+  const zoomInput = document.getElementById('zoomInput');
+  const presetButtons = document.querySelectorAll('[data-preset]');
+  const dctx = densityCanvas.getContext('2d');
+  const xpPanel = document.getElementById('xpPanel');
+  const levelNumEl = document.getElementById('levelNum');
+  const xpCurrentEl = document.getElementById('xpCurrent');
+  const xpNeededEl = document.getElementById('xpNeeded');
+  const xpFillEl = document.getElementById('xpFill');
+  const xpToastEl = document.getElementById('xpToast');
+  const levelupBanner = document.getElementById('levelupBanner');
+  const estXPEl = document.getElementById('estXP');
+  const dtToggle = document.getElementById('dtToggle');
+  const dtTimerInput = document.getElementById('dtTimerInput');
+
+  const MAX_DIM = 500;
+  const MIN_DIM = 2;
+
+  // ---------- shared board math: 3BV + XP formula ----------
+  // 3BV ("Bechtel's Board Benchmark Value") = minimum number of clicks needed
+  // to clear a board: one click per contiguous zero-opening, plus one click
+  // per isolated non-mine cell that isn't touched by any opening.
+  function idxFor(w,x,y){ return y*w+x; }
+  function inBoundsFor(w,h,x,y){ return x>=0 && y>=0 && x<w && y<h; }
+
+  function computeAdjacency(w,h,mineArr){
+    const total = w*h;
+    const adjArr = new Uint8Array(total);
+    for(let i=0;i<total;i++){
+      if(!mineArr[i]) continue;
+      const x = i % w, y = (i-x)/w;
+      for(let dy=-1; dy<=1; dy++){
+        for(let dx=-1; dx<=1; dx++){
+          if(dx===0 && dy===0) continue;
+          const nx=x+dx, ny=y+dy;
+          if(nx<0||ny<0||nx>=w||ny>=h) continue;
+          adjArr[ny*w+nx]++;
+        }
+      }
+    }
+    return adjArr;
+  }
+
+  function computeBV3(w,h,mineArr,adjArr){
+    const total = w*h;
+    const visited = new Uint8Array(total);
+    let bv3 = 0;
+    for(let i=0;i<total;i++){
+      if(mineArr[i] || visited[i] || adjArr[i] !== 0) continue;
+      bv3++;
+      const stack = [i];
+      visited[i] = 1;
+      while(stack.length){
+        const ci = stack.pop();
+        const cx = ci % w, cy = (ci-cx)/w;
+        for(let dy=-1; dy<=1; dy++){
+          for(let dx=-1; dx<=1; dx++){
+            if(dx===0 && dy===0) continue;
+            const nx=cx+dx, ny=cy+dy;
+            if(nx<0||ny<0||nx>=w||ny>=h) continue;
+            const ni = ny*w+nx;
+            if(mineArr[ni] || visited[ni]) continue;
+            visited[ni] = 1;
+            if(adjArr[ni] === 0) stack.push(ni);
+          }
+        }
+      }
+    }
+    for(let i=0;i<total;i++){
+      if(!mineArr[i] && !visited[i]) bv3++;
+    }
+    return bv3;
+  }
+
+  // XP = (3BV \u00d7 k1) \u00d7 (1 + k2\u00b7density) \u00d7 (1 + log2(1 + cells/k3)) \u00d7 (1 + k4\u00b7\u221a(3BV/s))
+  // The 4th factor (built from 3BV/s = 3BV \u00f7 time) is only applied when a
+  // completion time is supplied; the settings-panel estimate omits it.
+  // No XP is awarded for trivial fields: 0% or 100% mine density (no real
+  // decision-making involved), or any board smaller than 8x8.
+  function isXPEligible(w,h,densityPercent){
+    return w>=8 && h>=8 && densityPercent>0 && densityPercent<100;
+  }
+
+  const XP_K1 = 2.2, XP_K2 = 1.6, XP_K3 = 64, XP_K4 = 0.5;
+  function calcXP(totalCells, density, bv3, timeSeconds){
+    const term1 = bv3 * XP_K1;
+    const term2 = 1 + XP_K2 * density;
+    const term3 = 1 + Math.log2(1 + totalCells / XP_K3);
+    let value = term1 * term2 * term3;
+    if(timeSeconds !== null && timeSeconds !== undefined){
+      const t = Math.max(1, timeSeconds);
+      const bv3PerSec = bv3 / t;
+      const term4 = 1 + XP_K4 * Math.sqrt(bv3PerSec);
+      value *= term4;
+    }
+    return Math.max(1, Math.round(value));
+  }
+
+  function computeGameMineCount(w,h,densityFraction){
+    const total = w*h;
+    const safeZone = Math.min(9, total);
+    const maxMines = Math.max(0, total - safeZone);
+    let m = Math.min(maxMines, Math.round(total*densityFraction));
+    if(densityFraction>0 && m===0 && maxMines>0) m = 1;
+    return m;
+  }
+
+  // ---------- density preview ----------
+  function drawDensityPreview(){
+    const density = parseInt(densityInput.value,10) / 100;
+    const cols = 26, rows = 9;
+    const cw = densityCanvas.width / cols, ch = densityCanvas.height / rows;
+    dctx.clearRect(0,0,densityCanvas.width, densityCanvas.height);
+    for(let y=0;y<rows;y++){
+      for(let x=0;x<cols;x++){
+        const isMine = Math.random() < density;
+        dctx.fillStyle = isMine ? 'rgba(255,82,82,0.85)' : 'rgba(74,222,128,0.18)';
+        const pad=1.5;
+        dctx.fillRect(x*cw+pad, y*ch+pad, cw-pad*2, ch-pad*2);
+      }
+    }
+  }
+
+  function syncDensityLabel(){
+    const v = densityInput.value + '%';
+    densityValue.textContent = v;
+    densityValue2.textContent = v;
+    drawDensityPreview();
+    syncEstimate();
+    scheduleXPEstimate();
+  }
+
+  densityInput.addEventListener('input', syncDensityLabel);
+
+  // ---------- dimension handling ----------
+  function clampDim(v){
+    v = parseInt(v,10);
+    if(isNaN(v)) v = MIN_DIM;
+    return Math.max(MIN_DIM, Math.min(MAX_DIM, v));
+  }
+
+  function clampDTTimer(v){
+    v = parseInt(v,10);
+    if(isNaN(v)) v = 10;
+    return Math.max(3, Math.min(60, v));
+  }
+
+  function syncEstimate(){
+    const w = clampDim(widthInput.value || MIN_DIM);
+    const h = clampDim(heightInput.value || MIN_DIM);
+    const density = parseInt(densityInput.value,10)/100;
+    const total = w*h;
+    const mines = Math.round(total*density);
+    totalCellsEl.textContent = total.toLocaleString();
+    estMinesEl.textContent = mines.toLocaleString();
+  }
+
+  let estimateDebounce = null;
+  function scheduleXPEstimate(){
+    clearTimeout(estimateDebounce);
+    estXPEl.textContent = '\u2026'; // show it's recalculating
+    estimateDebounce = setTimeout(updateXPEstimate, 150);
+  }
+
+  function updateXPEstimate(){
+    const w = clampDim(widthInput.value || MIN_DIM);
+    const h = clampDim(heightInput.value || MIN_DIM);
+    const densityPercent = parseInt(densityInput.value,10);
+    const density = densityPercent/100;
+
+    if(!isXPEligible(w,h,densityPercent)){
+      estXPEl.textContent = 'No XP';
+      estXPEl.classList.add('ineligible');
+      return;
+    }
+    estXPEl.classList.remove('ineligible');
+
+    const total = w*h;
+    const mines = computeGameMineCount(w,h,density);
+
+    // Simulate a random sample layout (no first-click safe zone needed here)
+    // purely to estimate what a typical 3BV looks like at this size/density.
+    const sampleMine = new Uint8Array(total);
+    if(mines>0){
+      const pool = new Uint32Array(total);
+      for(let i=0;i<total;i++) pool[i] = i;
+      for(let i=0;i<mines;i++){
+        const r = i + Math.floor(Math.random()*(total-i));
+        const tmp = pool[i]; pool[i]=pool[r]; pool[r]=tmp;
+        sampleMine[pool[i]] = 1;
+      }
+    }
+    const sampleAdj = computeAdjacency(w,h,sampleMine);
+    const sampleBV3 = computeBV3(w,h,sampleMine,sampleAdj);
+    const actualDensity = total>0 ? mines/total : 0;
+
+    const doubleTrouble = dtToggle.checked;
+    const boardsCount = doubleTrouble ? 2 : 1;
+    const combinedTotal = total * boardsCount;
+    // Each Double Trouble board is independently randomized; the sample's
+    // 3BV is used as a representative per-board figure for both.
+    const combinedBV3 = sampleBV3 * boardsCount;
+    let xpEst = calcXP(combinedTotal, actualDensity, combinedBV3, null);
+    if(doubleTrouble) xpEst = Math.round(xpEst * 1.5);
+    estXPEl.textContent = '\u2248 ' + xpEst.toLocaleString() + ' XP';
+  }
+
+  widthInput.addEventListener('input', ()=>{clearPresetActive(); syncEstimate(); scheduleXPEstimate();});
+  heightInput.addEventListener('input', ()=>{clearPresetActive(); syncEstimate(); scheduleXPEstimate();});
+  widthInput.addEventListener('change', ()=>{widthInput.value = clampDim(widthInput.value); syncEstimate(); scheduleXPEstimate();});
+  heightInput.addEventListener('change', ()=>{heightInput.value = clampDim(heightInput.value); syncEstimate(); scheduleXPEstimate();});
+  dtToggle.addEventListener('change', scheduleXPEstimate);
+  dtTimerInput.addEventListener('change', ()=>{ dtTimerInput.value = clampDTTimer(dtTimerInput.value); });
+
+  function clearPresetActive(){
+    presetButtons.forEach(b=>b.classList.remove('active'));
+  }
+
+  const PRESETS = {
+    beginner:   {w:9, h:9, d:12},
+    intermediate:{w:16, h:16, d:15},
+    expert:     {w:30, h:16, d:21},
+    max:        {w:500, h:500, d:20},
+  };
+  presetButtons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const p = PRESETS[btn.dataset.preset];
+      widthInput.value = p.w;
+      heightInput.value = p.h;
+      densityInput.value = p.d;
+      clearPresetActive();
+      btn.classList.add('active');
+      syncDensityLabel();
+      syncEstimate();
+    });
+  });
+
+  // ---------- leveling / XP ----------
+  let level = 1;
+  let xp = 0;
+  let xpToastTimer = null;
+  let bannerTimer = null;
+  let bannerQueueTimer = null;
+
+  function xpForLevel(lvl){
+    // requirement grows each level: 100, 145, 190, 238...
+    return Math.round(100 + (lvl-1)*45 + Math.pow(lvl-1, 1.4) * 4);
+  }
+
+  function updateXPUI(){
+    const needed = xpForLevel(level);
+    levelNumEl.textContent = level;
+    xpCurrentEl.textContent = Math.floor(xp);
+    xpNeededEl.textContent = needed;
+    const pct = Math.max(0, Math.min(100, (xp/needed)*100));
+    xpFillEl.style.width = pct + '%';
+  }
+
+  function showXPToast(amount, label){
+    clearTimeout(xpToastTimer);
+    xpToastEl.classList.remove('show');
+    xpPanel.classList.remove('gaining');
+    // force reflow to restart animation
+    void xpToastEl.offsetWidth;
+    xpToastEl.textContent = amount === 0 ? label : (amount >= 0 ? '+' : '') + amount + ' XP — ' + label;
+    xpToastEl.classList.toggle('negative', amount <= 0);
+    xpToastEl.classList.add('show');
+    xpPanel.classList.add('gaining');
+    xpToastTimer = setTimeout(()=>{
+      xpToastEl.classList.remove('show');
+      xpPanel.classList.remove('gaining');
+    }, 2300);
+  }
+
+  function showLevelUpBanner(newLevel){
+    clearTimeout(bannerTimer);
+    levelupBanner.textContent = 'RANK UP — LEVEL ' + newLevel;
+    levelupBanner.classList.remove('show');
+    void levelupBanner.offsetWidth;
+    levelupBanner.classList.add('show');
+    xpPanel.classList.remove('leveling-up');
+    void xpPanel.offsetWidth;
+    xpPanel.classList.add('leveling-up');
+    bannerTimer = setTimeout(()=>{
+      levelupBanner.classList.remove('show');
+      xpPanel.classList.remove('leveling-up');
+    }, 1300);
+  }
+
+  function addXP(amount, label){
+    if(amount === 0) return;
+    xp += amount;
+    let leveledUp = false;
+    while(xp >= xpForLevel(level)){
+      xp -= xpForLevel(level);
+      level++;
+      leveledUp = true;
+    }
+    showXPToast(amount, label);
+    updateXPUI();
+    if(leveledUp){
+      clearTimeout(bannerQueueTimer);
+      bannerQueueTimer = setTimeout(()=>showLevelUpBanner(level), 2350);
+    }
+  }
+
+  // ---------- shared session state ----------
+  let W = 16, H = 16;
+  let cellSize = 24;
+  let games = [];              // one board object per active field
+  let xpEligible = true;
+  let sessionStarted = false;
+  let timerHandle = null;
+  let startTime = 0;
+  let elapsed = 0;
+
+  let dtEnabled = false;
+  let dtMoveTimerSeconds = 10;
+  let dtActiveIndex = null;    // which board index currently must be moved on
+  let dtCountdownHandle = null;
+  let dtCountdownRemaining = 0;
+  let dtSessionOver = false;
+  let dtFreePlay = false;      // true once one board finishes early
+
+  const NUM_COLORS = ['', '#4ade80', '#ffb400', '#ff8a5c', '#5cc8ff', '#d17bff', '#5cffe6', '#f4f4f4', '#8a99a0'];
+
+  function resetTimer(){
+    clearInterval(timerHandle);
+    elapsed = 0; timerEl.textContent = '00:00';
+    timerHandle = null;
+  }
+  function startTimer(){
+    startTime = Date.now();
+    timerHandle = setInterval(()=>{
+      elapsed = Math.floor((Date.now()-startTime)/1000);
+      const m = String(Math.floor(elapsed/60)).padStart(2,'0');
+      const s = String(elapsed%60).padStart(2,'0');
+      timerEl.textContent = m+':'+s;
+    }, 250);
+  }
+  function stopTimer(){ clearInterval(timerHandle); timerHandle=null; }
+
+  function setStatus(text, mode){
+    stateValue.textContent = text;
+    stateReadout.classList.remove('lost');
+    if(mode==='lost') stateReadout.classList.add('lost');
+  }
+
+  function updateHeaderMineCount(){
+    const totalMines = games.reduce((s,g)=>s+g.mineCount, 0);
+    const totalFlags = games.reduce((s,g)=>s+g.flagCount, 0);
+    mineCountEl.textContent = totalMines - totalFlags;
+  }
+
+  // ---------- board factory ----------
+  function makeEmptyGame(w,h,mineCount){
+    const total = w*h;
+    return {
+      W:w, H:h, mineCount:mineCount,
+      mine:new Uint8Array(total), revealed:new Uint8Array(total),
+      flagged:new Uint8Array(total), adj:new Uint8Array(total),
+      firstClickDone:false, gameOver:false, gameWon:false,
+      revealedCount:0, flagCount:0, boardBV3:0, exploded:-1,
+      locked:false, canvas:null, ctx:null, slotEl:null, timerLabelEl:null
+    };
+  }
+
+  function placeMinesForGame(g, safeX, safeY){
+    const w=g.W, h=g.H, total=w*h;
+    const forbidden = new Set();
+    for(let dy=-1; dy<=1; dy++){
+      for(let dx=-1; dx<=1; dx++){
+        const nx=safeX+dx, ny=safeY+dy;
+        if(inBoundsFor(w,h,nx,ny)) forbidden.add(idxFor(w,nx,ny));
+      }
+    }
+    const pool = [];
+    for(let i=0;i<total;i++){ if(!forbidden.has(i)) pool.push(i); }
+    const n = pool.length;
+    const pick = Math.min(g.mineCount, n);
+    for(let i=0;i<pick;i++){
+      const r = i + Math.floor(Math.random()*(n-i));
+      const tmp = pool[i]; pool[i]=pool[r]; pool[r]=tmp;
+      g.mine[pool[i]] = 1;
+    }
+    g.mineCount = pick;
+
+    for(let i=0;i<total;i++){
+      if(!g.mine[i]) continue;
+      const x = i % w, y = (i - x)/w;
+      for(let dy=-1; dy<=1; dy++){
+        for(let dx=-1; dx<=1; dx++){
+          if(dx===0 && dy===0) continue;
+          const nx=x+dx, ny=y+dy;
+          if(inBoundsFor(w,h,nx,ny)) g.adj[idxFor(w,nx,ny)]++;
+        }
+      }
+    }
+    g.boardBV3 = computeBV3(w,h,g.mine,g.adj);
+  }
+
+  function revealCellInGame(g,x,y,changed){
+    const w=g.W, h=g.H;
+    const i = idxFor(w,x,y);
+    if(g.revealed[i] || g.flagged[i]) return;
+    g.revealed[i] = 1;
+    g.revealedCount++;
+    changed.push(i);
+    if(g.adj[i]===0 && !g.mine[i]){
+      const stack = [[x,y]];
+      while(stack.length){
+        const [cx,cy] = stack.pop();
+        for(let dy=-1; dy<=1; dy++){
+          for(let dx=-1; dx<=1; dx++){
+            if(dx===0 && dy===0) continue;
+            const nx=cx+dx, ny=cy+dy;
+            if(!inBoundsFor(w,h,nx,ny)) continue;
+            const ni = idxFor(w,nx,ny);
+            if(g.revealed[ni] || g.flagged[ni]) continue;
+            g.revealed[ni] = 1;
+            g.revealedCount++;
+            changed.push(ni);
+            if(g.adj[ni]===0 && !g.mine[ni]) stack.push([nx,ny]);
+          }
+        }
+      }
+    }
+  }
+
+  // ---------- drawing ----------
+  function drawMineOnCtx(ctx,px,py,s,exploded){
+    const cx = px+s/2, cy = py+s/2, r = s*0.28;
+    if(exploded){
+      ctx.fillStyle = '#ff5252';
+      ctx.fillRect(px,py,s,s);
+    }
+    ctx.fillStyle = exploded ? '#1a0505' : '#e8e8e8';
+    ctx.beginPath();
+    ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = exploded ? '#1a0505' : '#e8e8e8';
+    ctx.lineWidth = Math.max(1, s*0.06);
+    for(let a=0; a<8; a++){
+      const ang = a*Math.PI/4;
+      ctx.beginPath();
+      ctx.moveTo(cx+Math.cos(ang)*r*0.4, cy+Math.sin(ang)*r*0.4);
+      ctx.lineTo(cx+Math.cos(ang)*r*1.7, cy+Math.sin(ang)*r*1.7);
+      ctx.stroke();
+    }
+  }
+
+  function drawFlagOnCtx(ctx,px,py,s){
+    const pad = s*0.22;
+    ctx.strokeStyle = '#ffb400';
+    ctx.lineWidth = Math.max(1, s*0.09);
+    ctx.beginPath();
+    ctx.moveTo(px+pad, py+s-pad);
+    ctx.lineTo(px+pad, py+pad);
+    ctx.stroke();
+    ctx.fillStyle = '#ff5252';
+    ctx.beginPath();
+    ctx.moveTo(px+pad, py+pad);
+    ctx.lineTo(px+s-pad, py+pad*1.9);
+    ctx.lineTo(px+pad, py+pad*2.8);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawCellInGame(g,x,y){
+    const ctx = g.ctx;
+    const i = idxFor(g.W,x,y);
+    const px=x*cellSize, py=y*cellSize, s=cellSize;
+    const exploded = g.exploded === i;
+
+    if(g.revealed[i]){
+      ctx.fillStyle = exploded ? '#3a1414' : (g.mine[i] ? '#1a1010' : '#0d1310');
+      ctx.fillRect(px,py,s,s);
+      ctx.strokeStyle = '#243029';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
+
+      if(g.mine[i]){
+        drawMineOnCtx(ctx,px,py,s,exploded);
+      } else if(g.adj[i] > 0){
+        ctx.fillStyle = NUM_COLORS[g.adj[i]];
+        ctx.font = '700 ' + Math.max(9, Math.floor(s*0.55)) + 'px "Chakra Petch", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(g.adj[i], px+s/2, py+s/2+1);
+      }
+    } else {
+      ctx.fillStyle = '#1b2621';
+      ctx.fillRect(px,py,s,s);
+      ctx.strokeStyle = '#0a0f0c';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px+0.5,py+0.5,s-1,s-1);
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.beginPath();
+      ctx.moveTo(px+1, py+s-1);
+      ctx.lineTo(px+1, py+1);
+      ctx.lineTo(px+s-1, py+1);
+      ctx.stroke();
+
+      if(g.flagged[i]){
+        drawFlagOnCtx(ctx,px,py,s);
+      }
+    }
+  }
+
+  function fullRedrawGame(g){
+    if(!g.ctx) return;
+    g.ctx.clearRect(0,0,g.canvas.width, g.canvas.height);
+    for(let y=0;y<g.H;y++){
+      for(let x=0;x<g.W;x++){
+        drawCellInGame(g,x,y);
+      }
+    }
+  }
+
+  // ---------- Double Trouble orchestration ----------
+  function setSlotState(gi, state, seconds){
+    const g = games[gi];
+    if(!g || !g.slotEl) return;
+    g.slotEl.classList.remove('locked','active','cleared','failed');
+    let label = '';
+    if(state==='ready'){ label = 'READY'; }
+    else if(state==='ready-free'){ label = 'FREE PLAY'; }
+    else if(state==='active'){ label = (seconds!=null?seconds:dtMoveTimerSeconds) + 's'; g.slotEl.classList.add('active'); }
+    else if(state==='locked'){ label = 'LOCKED'; g.slotEl.classList.add('locked'); }
+    else if(state==='cleared'){ label = 'CLEARED'; g.slotEl.classList.add('cleared'); }
+    else if(state==='failed'){ label = 'FAILED'; g.slotEl.classList.add('failed'); }
+    if(g.timerLabelEl) g.timerLabelEl.textContent = label;
+  }
+
+  function startDTCountdown(activeIndex){
+    clearInterval(dtCountdownHandle);
+    dtCountdownRemaining = dtMoveTimerSeconds;
+    setSlotState(activeIndex, 'active', dtCountdownRemaining);
+    dtCountdownHandle = setInterval(()=>{
+      dtCountdownRemaining--;
+      if(dtCountdownRemaining <= 0){
+        clearInterval(dtCountdownHandle);
+        handleDTTimeout(activeIndex);
+      } else {
+        setSlotState(activeIndex, 'active', dtCountdownRemaining);
+      }
+    }, 1000);
+  }
+
+  function onSuccessfulMove(gi){
+    if(!dtEnabled || games.length<2 || dtSessionOver || dtFreePlay) return;
+    const other = 1-gi;
+    games[gi].locked = true;
+    games[other].locked = false;
+    setSlotState(gi, games[gi].gameOver ? (games[gi].gameWon?'cleared':'failed') : 'locked');
+    dtActiveIndex = other;
+    startDTCountdown(other);
+  }
+
+  function handleDTTimeout(activeIndex){
+    if(dtSessionOver) return;
+    const g = games[activeIndex];
+    if(!g || g.gameOver) return;
+    triggerLossOnGame(activeIndex, -1);
+    endDTSession(false, 'MOVE WINDOW EXPIRED');
+  }
+
+  function endDTSession(won, reasonText){
+    if(dtSessionOver) return;
+    dtSessionOver = true;
+    clearInterval(dtCountdownHandle);
+    games.forEach((g,i)=>{
+      if(g.gameOver){ setSlotState(i, g.gameWon ? 'cleared' : 'failed'); }
+      else { setSlotState(i, 'locked'); g.locked = true; }
+    });
+    stopTimer();
+    if(won){
+      setStatus('CLEARED');
+      msgOverlay.className = 'msg-overlay show win';
+      msgOverlay.textContent = 'DOUBLE TROUBLE CLEARED — ' + timerEl.textContent;
+      awardDoubleTroubleXP();
+    } else {
+      setStatus('DETONATED', 'lost');
+      msgOverlay.className = 'msg-overlay show lose';
+      msgOverlay.textContent = (reasonText || 'FAILED') + ' — DOUBLE TROUBLE FAILED';
+      awardDoubleTroubleConsolation();
+    }
+  }
+
+  function awardDoubleTroubleXP(){
+    if(!xpEligible){ showXPToast(0, 'NO XP — FIELD TOO TRIVIAL'); return; }
+    const combinedTotal = games.reduce((s,g)=>s+g.W*g.H, 0);
+    const combinedMines = games.reduce((s,g)=>s+g.mineCount, 0);
+    const combinedBV3 = games.reduce((s,g)=>s+g.boardBV3, 0);
+    const density = combinedTotal>0 ? combinedMines/combinedTotal : 0;
+    let xpGain = calcXP(combinedTotal, density, combinedBV3, elapsed);
+    xpGain = Math.round(xpGain * 1.5);
+    addXP(xpGain, 'DOUBLE TROUBLE CLEARED');
+  }
+
+  function awardDoubleTroubleConsolation(){
+    if(!xpEligible){ showXPToast(0, 'NO XP — FIELD TOO TRIVIAL'); return; }
+    const combinedRevealed = games.reduce((s,g)=>s+g.revealedCount, 0);
+    let consolation = Math.max(1, Math.round(combinedRevealed * 0.12));
+    consolation = Math.round(consolation * 1.5);
+    addXP(consolation, 'FIELD DATA COLLECTED');
+  }
+
+  // ---------- win / loss (single-board / classic) ----------
+  function finalizeSingleWin(gi){
+    stopTimer();
+    setStatus('CLEARED');
+    msgOverlay.className = 'msg-overlay show win';
+    msgOverlay.textContent = 'FIELD CLEARED — ' + timerEl.textContent;
+    const g = games[gi];
+    const total = g.W*g.H;
+    if(xpEligible){
+      const density = total>0 ? g.mineCount/total : 0;
+      const xpGain = calcXP(total, density, g.boardBV3, elapsed);
+      addXP(xpGain, 'FIELD CLEARED');
+    } else {
+      showXPToast(0, 'NO XP — FIELD TOO TRIVIAL');
+    }
+  }
+
+  function finalizeSingleLoss(gi){
+    stopTimer();
+    setStatus('DETONATED', 'lost');
+    msgOverlay.className = 'msg-overlay show lose';
+    msgOverlay.textContent = 'CHARGE DETONATED — FIELD LOST';
+    const g = games[gi];
+    if(xpEligible){
+      const consolation = Math.max(1, Math.round(g.revealedCount * 0.12));
+      addXP(consolation, 'FIELD DATA COLLECTED');
+    } else {
+      showXPToast(0, 'NO XP — FIELD TOO TRIVIAL');
+    }
+  }
+
+  function triggerLossOnGame(gi, explodedIdx){
+    const g = games[gi];
+    if(g.gameOver) return;
+    g.gameOver = true;
+    g.exploded = explodedIdx;
+    for(let i=0;i<g.mine.length;i++){
+      if(g.mine[i]) g.revealed[i] = 1;
+    }
+    fullRedrawGame(g);
+  }
+
+  function checkWinOnGame(gi){
+    const g = games[gi];
+    const total = g.W*g.H;
+    if(g.gameWon || g.gameOver) return;
+    if(g.revealedCount === total - g.mineCount){
+      g.gameWon = true;
+      g.gameOver = true;
+      for(let i=0;i<g.mine.length;i++){ if(g.mine[i]) g.flagged[i]=1; }
+      fullRedrawGame(g);
+
+      if(!dtEnabled || games.length<2){
+        finalizeSingleWin(gi);
+      } else if(games.every(gg=>gg.gameWon)){
+        endDTSession(true);
+      } else {
+        // One board is done, the other continues without turn pressure.
+        setSlotState(gi, 'cleared');
+        clearInterval(dtCountdownHandle);
+        const other = 1-gi;
+        games[other].locked = false;
+        setSlotState(other, games[other].gameOver ? (games[other].gameWon?'cleared':'failed') : 'ready-free');
+        dtActiveIndex = null;
+        dtFreePlay = true;
+      }
+    }
+  }
+
+  // ---------- input handling ----------
+  function canvasToCellForGame(g, evt){
+    const rect = g.canvas.getBoundingClientRect();
+    const scaleX = g.canvas.width / rect.width;
+    const scaleY = g.canvas.height / rect.height;
+    const cx = (evt.clientX - rect.left) * scaleX;
+    const cy = (evt.clientY - rect.top) * scaleY;
+    const x = Math.floor(cx / cellSize);
+    const y = Math.floor(cy / cellSize);
+    if(!inBoundsFor(g.W,g.H,x,y)) return null;
+    return [x,y];
+  }
+
+  function isLockedOut(gi){
+    const g = games[gi];
+    if(g.gameOver) return true;
+    if(dtEnabled && games.length>1 && (g.locked || dtSessionOver)) return true;
+    return false;
+  }
+
+  function handleRevealOnGame(gi,x,y){
+    const g = games[gi];
+    if(isLockedOut(gi)) return;
+    const i = idxFor(g.W,x,y);
+    if(g.flagged[i]) return;
+    if(!g.firstClickDone){
+      placeMinesForGame(g,x,y);
+      g.firstClickDone = true;
+    }
+    if(!sessionStarted){ sessionStarted = true; startTimer(); }
+
+    if(g.mine[i]){
+      g.revealed[i] = 1;
+      triggerLossOnGame(gi, i);
+      if(dtEnabled && games.length>1){ endDTSession(false, 'CHARGE DETONATED'); }
+      else { finalizeSingleLoss(gi); }
+      return;
+    }
+
+    const changed = [];
+    revealCellInGame(g,x,y,changed);
+    changed.forEach(ci => drawCellInGame(g, ci % g.W, Math.floor(ci / g.W)));
+    updateHeaderMineCount();
+    checkWinOnGame(gi);
+
+    if(dtEnabled && games.length>1 && !dtSessionOver && !dtFreePlay && !g.gameWon){
+      onSuccessfulMove(gi);
+    }
+  }
+
+  function handleFlagOnGame(gi,x,y){
+    const g = games[gi];
+    if(isLockedOut(gi)) return;
+    const i = idxFor(g.W,x,y);
+    if(g.revealed[i]) return;
+    if(!g.firstClickDone) return;
+    g.flagged[i] = g.flagged[i] ? 0 : 1;
+    g.flagCount += g.flagged[i] ? 1 : -1;
+    updateHeaderMineCount();
+    drawCellInGame(g,x,y);
+  }
+
+  function handleChordOnGame(gi,x,y){
+    const g = games[gi];
+    if(isLockedOut(gi)) return;
+    const i = idxFor(g.W,x,y);
+    if(!g.revealed[i] || g.adj[i]===0) return;
+
+    let flagsAround = 0;
+    const hiddenUnflagged = [];
+    const neighbors = [];
+    for(let dy=-1; dy<=1; dy++){
+      for(let dx=-1; dx<=1; dx++){
+        if(dx===0 && dy===0) continue;
+        const nx=x+dx, ny=y+dy;
+        if(!inBoundsFor(g.W,g.H,nx,ny)) continue;
+        const ni = idxFor(g.W,nx,ny);
+        neighbors.push(ni);
+        if(g.flagged[ni]) flagsAround++;
+        else if(!g.revealed[ni]) hiddenUnflagged.push(ni);
+      }
+    }
+
+    if(flagsAround === g.adj[i]){
+      const changed = [];
+      let hitMineIdx = -1;
+      for(const ni of neighbors){
+        if(g.flagged[ni] || g.revealed[ni]) continue;
+        const nx = ni % g.W, ny = Math.floor(ni / g.W);
+        if(g.mine[ni]){
+          g.revealed[ni] = 1;
+          hitMineIdx = ni;
+          break;
+        }
+        revealCellInGame(g, nx, ny, changed);
+      }
+      changed.forEach(ci => drawCellInGame(g, ci % g.W, Math.floor(ci / g.W)));
+
+      if(hitMineIdx !== -1){
+        triggerLossOnGame(gi, hitMineIdx);
+        if(dtEnabled && games.length>1){ endDTSession(false, 'CHARGE DETONATED'); }
+        else { finalizeSingleLoss(gi); }
+        return;
+      }
+
+      updateHeaderMineCount();
+      checkWinOnGame(gi);
+      if(dtEnabled && games.length>1 && !dtSessionOver && !dtFreePlay && !g.gameWon){
+        onSuccessfulMove(gi);
+      }
+      return;
+    }
+
+    if(flagsAround + hiddenUnflagged.length === g.adj[i] && hiddenUnflagged.length > 0){
+      for(const ni of hiddenUnflagged){
+        g.flagged[ni] = 1;
+        g.flagCount++;
+        drawCellInGame(g, ni % g.W, Math.floor(ni / g.W));
+      }
+      updateHeaderMineCount();
+    }
+  }
+
+  // ---------- board DOM construction ----------
+  function buildBoardsDOM(){
+    boardRow.innerHTML = '';
+    games.forEach((g,gi)=>{
+      const slot = document.createElement('div');
+      slot.className = 'board-slot';
+
+      const timerLabel = document.createElement('div');
+      timerLabel.className = 'board-timer' + (games.length<2 ? ' hidden' : '');
+      timerLabel.textContent = games.length>1 ? 'READY' : '';
+
+      const canvas = document.createElement('canvas');
+      canvas.className = 'board-canvas';
+      canvas.width = g.W*cellSize;
+      canvas.height = g.H*cellSize;
+
+      slot.appendChild(timerLabel);
+      slot.appendChild(canvas);
+      boardRow.appendChild(slot);
+
+      g.slotEl = slot;
+      g.timerLabelEl = timerLabel;
+      g.canvas = canvas;
+      g.ctx = canvas.getContext('2d');
+
+      canvas.addEventListener('click', (evt)=>{
+        const c = canvasToCellForGame(g, evt);
+        if(!c) return;
+        const [x,y] = c;
+        const i = idxFor(g.W,x,y);
+        if(g.firstClickDone && g.revealed[i]){
+          handleChordOnGame(gi,x,y);
+        } else {
+          handleRevealOnGame(gi,x,y);
+        }
+      });
+
+      canvas.addEventListener('contextmenu', (evt)=>{
+        evt.preventDefault();
+        const c = canvasToCellForGame(g, evt);
+        if(!c) return;
+        handleFlagOnGame(gi, c[0], c[1]);
+      });
+    });
+  }
+
+  zoomInput.addEventListener('input', ()=>{
+    cellSize = parseInt(zoomInput.value,10);
+    games.forEach(g=>{
+      if(!g.canvas) return;
+      g.canvas.width = g.W*cellSize;
+      g.canvas.height = g.H*cellSize;
+      fullRedrawGame(g);
+    });
+  });
+
+  // ---------- deploy ----------
+  function newGame(){
+    W = clampDim(widthInput.value || MIN_DIM);
+    H = clampDim(heightInput.value || MIN_DIM);
+    widthInput.value = W; heightInput.value = H;
+    const densityPercent = parseInt(densityInput.value,10);
+    const density = densityPercent/100;
+    xpEligible = isXPEligible(W,H,densityPercent);
+
+    dtEnabled = dtToggle.checked;
+    dtMoveTimerSeconds = clampDTTimer(dtTimerInput.value);
+    dtTimerInput.value = dtMoveTimerSeconds;
+
+    const perGameMineCount = computeGameMineCount(W,H,density);
+    const boardCount = dtEnabled ? 2 : 1;
+    games = [];
+    for(let n=0;n<boardCount;n++){
+      games.push(makeEmptyGame(W,H,perGameMineCount));
+    }
+
+    dtSessionOver = false;
+    dtFreePlay = false;
+    dtActiveIndex = null;
+    clearInterval(dtCountdownHandle);
+    sessionStarted = false;
+
+    resetTimer();
+    setStatus('READY');
+    msgOverlay.className = 'msg-overlay';
+    msgOverlay.textContent = '';
+
+    cellSize = parseInt(zoomInput.value,10);
+    buildBoardsDOM();
+    games.forEach(g=>fullRedrawGame(g));
+    updateHeaderMineCount();
+    syncEstimate();
+  }
+
+  newGameBtn.addEventListener('click', newGame);
+
+  // ---------- init ----------
+  syncDensityLabel();
+  syncEstimate();
+  updateXPUI();
+  updateXPEstimate();
+  newGame();
+
+})();
+</script>
+</body>
+</html>
